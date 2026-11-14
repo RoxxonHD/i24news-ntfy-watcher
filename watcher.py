@@ -554,10 +554,9 @@ async def send_ntfy_notification(
     max_retries: int = DEFAULT_MAX_RETRIES,
 ) -> bool:
     """
-    Envía una notificación push minimalista a ntfy.sh:
-    - Header `Title`: ÚNICAMENTE el texto largo del News Feed (sin corchetes).
-    - Body: Carácter invisible `\u200b` (cuerpo visualmente vacío sin el excerpt y sin que
-      ntfy.sh inyecte el texto por defecto "triggered").
+    Envía una notificación push a ntfy.sh optimizada para iOS (sin truncamiento):
+    - Header `Title`: String estático "i24NEWS".
+    - Body (data): El titular largo extraído del News Feed (en múltiples líneas en iOS).
     - Sin header `Tags`: Cero emojis en la notificación.
     - Header `Icon`: Logo cuadrado oficial de i24NEWS.
     - Header `Click`: Universal Link completo hacia la nota en i24news.tv.
@@ -565,25 +564,24 @@ async def send_ntfy_notification(
     priority = "urgent" if item.is_breaking else "high"
 
     raw_headers = {
-        "Title": item.feed_title,
+        "Title": "i24NEWS",
         "Click": item.frontend_url,
         "Icon": icon_url,
         "Priority": priority,
     }
     utf8_headers = httpx.Headers(raw_headers, encoding="utf-8")
-    # Cuerpo invisible para mostrar exclusivamente el título sin excerpt
-    empty_body_bytes = "\u200b".encode("utf-8")
+    body_bytes = item.feed_title.encode("utf-8")
 
     for attempt in range(1, max_retries + 1):
         try:
             response = await client.post(
                 ntfy_url,
                 headers=utf8_headers,
-                content=empty_body_bytes,
+                content=body_bytes,
             )
             response.raise_for_status()
             logger.info(
-                "Push enviado (filtro interno: %s) -> %s | URL: %s",
+                "Push enviado (filtro interno: %s) -> [i24NEWS] %s | URL: %s",
                 item.section,
                 item.feed_title,
                 item.frontend_url,
@@ -672,8 +670,8 @@ async def run_test_notification(api_url: str, ntfy_url: str, icon_url: str, time
                     "Última entrada válida del News Feed encontrada:\n"
                     "  - ID News Feed / Artículo : %d / %d\n"
                     "  - Filtro interno aplicado : %s (oculto en el push)\n"
-                    "  - Title (News Feed texto) : %s\n"
-                    "  - Body                    : (vacío)\n"
+                    "  - Title (estático)        : i24NEWS\n"
+                    "  - Body (News Feed texto)  : %s\n"
                     "  - Icon                    : %s\n"
                     "  - URL Universal Link      : %s",
                     parsed.news_id,
