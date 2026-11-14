@@ -1,0 +1,10 @@
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+.env
+seen_news.db
+seen_news.db-shm
+seen_news.db-wal
+data/

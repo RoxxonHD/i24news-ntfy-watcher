@@ -1,0 +1,11 @@
+services:
+  i24news-watcher:
+    build: .
+    container_name: i24news-watcher
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - DB_PATH=/data/seen_news.db
+    volumes:
+      - ./data:/data

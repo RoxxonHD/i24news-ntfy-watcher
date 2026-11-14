@@ -1,0 +1,71 @@
+name: i24NEWS 24/7 Cloud Watcher
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "*/15 * * * *"
+
+concurrency:
+  group: i24news-watcher-24-7
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  watch-feed:
+    runs-on: ubuntu-latest
+    timeout-minutes: 58
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Restore seen_news.db from state branch
+        run: |
+          git fetch origin state-db:state-db 2>/dev/null || true
+          if git show state-db:seen_news.db > seen_news.db 2>/dev/null; then
+            echo "Base seen_news.db restaurada desde la rama state-db."
+          else
+            rm -f seen_news.db
+            echo "Sin estado previo en state-db; watcher.py hará seed inicial limpio."
+          fi
+
+      - name: Run i24NEWS Watcher Loop (~50 min session)
+        env:
+          NTFY_URL: ${{ secrets.NTFY_URL }}
+          NTFY_ICON_URL: https://www.i24news.tv/images/apple-touch-icon.png
+          POLL_INTERVAL_SECONDS: "40"
+          DB_PATH: seen_news.db
+          MAX_RUNTIME_SECONDS: "3000"
+        run: python watcher.py --max-runtime 3000
+
+      - name: Persist seen_news.db to state branch
+        if: always()
+        run: |
+          if [ -f seen_news.db ]; then
+            sqlite3 seen_news.db "PRAGMA wal_checkpoint(TRUNCATE);" 2>/dev/null || true
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git checkout --orphan temp-state-branch
+            git rm -rf --cached . >/dev/null 2>&1 || true
+            git add -f seen_news.db
+            git commit -m "Update seen_news.db state"
+            git push -f origin temp-state-branch:state-db
+          fi
+
+      - name: Self-chain next 24/7 session immediately
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh workflow run watcher_24_7.yml --ref main || true

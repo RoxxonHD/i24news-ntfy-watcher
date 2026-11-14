@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: i24news-ntfy-watcher
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python watcher.py
+    healthCheckPath: /health
+    envVars:
+      - key: I24_API_URL
+        value: https://api.i24news.tv/v2/en/news
+      - key: NTFY_URL
+        sync: false
+      - key: NTFY_ICON_URL
+        value: https://www.i24news.tv/images/apple-touch-icon.png
+      - key: POLL_INTERVAL_SECONDS
+        value: "40"
+      - key: DB_PATH
+        value: /tmp/seen_news.db
